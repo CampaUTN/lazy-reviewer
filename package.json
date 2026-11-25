@@ -1,0 +1,29 @@
+{
+  "name": "lazy-reviewer",
+  "version": "0.1.0",
+  "description": "AI-guided walk through a GitHub Pull Request, following its use cases.",
+  "type": "module",
+  "bin": {
+    "lazy-reviewer": "bin/lazy-reviewer.js"
+  },
+  "scripts": {
+    "start": "node bin/lazy-reviewer.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.14.0"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CampaUTN/lazy-reviewer.git"
+  },
+  "keywords": [
+    "code-review",
+    "pull-request",
+    "github",
+    "claude"
+  ]
+}

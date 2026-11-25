@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lazy Reviewer</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+</head>
+<body>
+  <div id="loading">
+    <div class="spinner"></div>
+    <div id="loading-msg">…</div>
+    <div id="loading-account" class="account"></div>
+  </div>
+
+  <div id="app" hidden>
+    <header>
+      <div class="pr-title"><a id="pr-link" target="_blank"></a><span id="pr-meta"></span></div>
+      <div id="account" class="account"></div>
+      <div class="progress"><span id="progress-text"></span><div class="bar"><div id="progress-bar"></div></div></div>
+      <div class="toggles">
+        <button id="toggle-comments" class="toggle" aria-label="Comments">💬</button>
+        <button id="toggle-files" class="toggle" aria-label="Files">🗂</button>
+      </div>
+      <div class="keys" id="keys"></div>
+    </header>
+    <div class="layout">
+      <aside id="sidebar">
+        <h2 id="tour-title"></h2>
+        <p id="tour-summary"></p>
+        <div id="sections"></div>
+        <p id="tour-foot"></p>
+      </aside>
+      <main>
+        <div id="usecase-head"></div>
+        <nav id="breadcrumb"></nav>
+        <div id="panes"></div>
+      </main>
+      <aside id="files">
+        <div class="files-head" id="files-title"></div>
+        <div id="file-tree"></div>
+      </aside>
+    </div>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
