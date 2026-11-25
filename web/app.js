@@ -2,58 +2,58 @@
 const $ = (id) => document.getElementById(id);
 const LANG_MAP = { ts: "typescript", tsx: "typescript", js: "javascript", jsx: "javascript", mjs: "javascript", cjs: "javascript", py: "python", go: "go", java: "java", cs: "csharp", rb: "ruby", php: "php", kt: "kotlin", rs: "rust", sql: "sql", json: "json", yml: "yaml", yaml: "yaml", css: "css", scss: "scss", html: "xml", vue: "xml", sh: "bash", md: "markdown", swift: "swift", scala: "scala" };
 
-// ---------- i18n ----------
-const DICT = {
-  en: {
-    layers: { critical: "1 · Critical", support: "2 · Support", errors: "3 · Errors and validations", tests: "4 · Tests and config" },
-    starting: "Starting…", account: "Claude account:", offline: "No connection to lazy-reviewer (was the terminal closed?)",
-    empty: "The tour came out empty.", files: "{0} files", generated: "Generated with {0}", unanchoredFoot: " · {0} explanations without a verified quote (⚠)",
-    claude: "Claude:", accNow: "Current account: {0}", accGen: "This tour was generated with: {0}", accCache: "Tour loaded from cache (generated before the account was recorded)",
-    progress: "Case {0}/{1} · {2}% read", triggered: "Triggered by:", outsidePr: "outside the PR", noFile: "(file not available)",
-    noSteps: "This function has no steps. Press → to go back.", result: "Result:", step: "Step {0} of {1} · lines {2}–{3}",
-    unanchored: "⚠ this explanation does not quote the code literally; double-check it",
-    enter: "↓ Enter {0}", enterNext: " (next)", enterOpt: " (optional)", prev: "← Previous", next: "Next →",
-    keys: "<kbd>→</kbd> next <kbd>←</kbd> back <kbd>↓</kbd> enter <kbd>↑</kbd> exit <kbd>C</kbd> comments <kbd>F</kbd> files",
-    comments: "Comments", filesTitle: "Changed files", notCovered: "Not covered by the tour", skipped: "Skipped (lock file or binary)",
-    status: { added: "Added", modified: "Modified", deleted: "Deleted", renamed: "Renamed" },
-  },
-  es: {
-    layers: { critical: "1 · Crítico", support: "2 · Soporte", errors: "3 · Errores y validaciones", tests: "4 · Tests y config" },
-    starting: "Iniciando…", account: "Cuenta de Claude:", offline: "Sin conexión con lazy-reviewer (¿se cerró la terminal?)",
-    empty: "El recorrido quedó vacío.", files: "{0} archivos", generated: "Generado con {0}", unanchoredFoot: " · {0} explicaciones sin cita verificada (⚠)",
-    claude: "Claude:", accNow: "Cuenta actual: {0}", accGen: "Este recorrido se generó con: {0}", accCache: "Recorrido cargado de caché (generado antes de registrar la cuenta)",
-    progress: "Caso {0}/{1} · {2}% leído", triggered: "Se dispara con:", outsidePr: "fuera del PR", noFile: "(archivo no disponible)",
-    noSteps: "Esta función no tiene pasos. Pulsa → para volver.", result: "Resultado:", step: "Paso {0} de {1} · líneas {2}–{3}",
-    unanchored: "⚠ esta explicación no cita el código literalmente; verifícala",
-    enter: "↓ Entrar en {0}", enterNext: " (siguiente)", enterOpt: " (opcional)", prev: "← Anterior", next: "Siguiente →",
-    keys: "<kbd>→</kbd> siguiente <kbd>←</kbd> anterior <kbd>↓</kbd> entrar <kbd>↑</kbd> salir <kbd>C</kbd> comentarios <kbd>F</kbd> archivos",
-    comments: "Comentarios", filesTitle: "Archivos cambiados", notCovered: "No está en el recorrido", skipped: "Omitido (lock file o binario)",
-    status: { added: "Agregado", modified: "Modificado", deleted: "Eliminado", renamed: "Renombrado" },
-  },
+// ---------- UI text ----------
+const S = {
+  layers: { critical: "1 · Critical", support: "2 · Support", errors: "3 · Errors and validations", tests: "4 · Tests and config" },
+  starting: "Starting…", account: "Claude account:", offline: "No connection to lazy-reviewer (was the terminal closed?)",
+  empty: "The tour came out empty.", files: "{0} files", generated: "Generated with {0}", unanchoredFoot: " · {0} explanations without a verified quote (⚠)",
+  claude: "Claude:", accNow: "Current account: {0}", accGen: "This tour was generated with: {0}", accCache: "Tour loaded from cache (generated before the account was recorded)",
+  progress: "Case {0}/{1} · {2}% read", triggered: "Triggered by:", outsidePr: "outside the PR", noFile: "(file not available)",
+  noSteps: "This function has no steps. Press → to go back.", result: "Result:", step: "Step {0} of {1} · lines {2}–{3}",
+  unanchored: "⚠ this explanation does not quote the code literally; double-check it",
+  enter: "↓ Enter {0}", enterNext: " (next)", enterOpt: " (optional)", prev: "← Previous", next: "Next →",
+  keys: "<kbd>→</kbd> next <kbd>←</kbd> back <kbd>↓</kbd> enter <kbd>↑</kbd> exit <kbd>C</kbd> comments <kbd>D</kbd> deleted <kbd>F</kbd> files",
+  comments: "Comments", filesTitle: "Changed files", notCovered: "Not covered by the tour", skipped: "Skipped (lock file or binary)",
+  status: { added: "Added", modified: "Modified", deleted: "Deleted", renamed: "Renamed" },
+  deleted: "Deleted lines", removedHint: "{0} removed lines (this tour was cached before they were stored: run with --fresh to see them)",
+  instrTitle: "Reviewer settings", instrBtn: "Reviewer settings",
+  instrHelp: "Saved settings apply to new tours; regenerating this one spends tokens.",
+  deepLabel: "Deep analysis", deepHelp: "Sends the full changed files, more definitions and the places that call the changed functions. More detailed on large refactors; uses about 2-3x more tokens.",
+  layersLabel: "Layers to generate (turning one off saves tokens; turning off tests also skips the test files)",
+  instrLabel: "Instructions: how the reviewer explains the code and what it flags. The fixed rules (quote the code, ⚠ for risks, the tour format) always apply.",
+  hideLayer: "Hide this layer (no tokens: the tour stays as it is)", showLayer: "Show this layer", modeDeep: "deep", modeFocused: "focused",
+  instrCustom: "Custom instructions", instrDefault: "Default instructions", restore: "Restore default", cancel: "Cancel", save: "Save", saveRegen: "Save and regenerate",
+  saved: "Saved. It applies to the next tour.", busy: "A tour is being generated. Try again when it finishes.", tooLong: "Too long (max {0} characters).",
 };
-let S = DICT.en;
-const tr = (key, ...v) => String(S[key] ?? DICT.en[key] ?? key).replace(/\{(\d)\}/g, (_, i) => String(v[i] ?? ""));
-function setLang(lang) {
-  S = DICT[lang] ?? DICT.en;
-  document.documentElement.lang = DICT[lang] ? lang : "en";
+const tr = (key, ...v) => String(S[key] ?? key).replace(/\{(\d)\}/g, (_, i) => String(v[i] ?? ""));
+function applyLabels() {
   $("keys").innerHTML = tr("keys");
   $("files-title").textContent = tr("filesTitle");
   $("toggle-comments").title = `${tr("comments")} (C)`;
   $("toggle-files").title = `${tr("filesTitle")} (F)`;
+  $("toggle-deleted").title = `${tr("deleted")} (D)`;
+  $("open-instr").title = tr("instrBtn");
+  $("instr-title").textContent = tr("instrTitle");
+  $("instr-help").textContent = tr("instrHelp");
+  $("opt-deep-label").textContent = tr("deepLabel");
+  $("opt-deep-help").textContent = tr("deepHelp");
+  $("opt-layers-label").textContent = tr("layersLabel");
+  $("instr-label").textContent = tr("instrLabel");
+  [["instr-default", "restore"], ["instr-cancel", "cancel"], ["instr-save", "save"], ["instr-regen", "saveRegen"]].forEach(([id, k]) => { $(id).textContent = tr(k); });
 }
 
 // ---------- state ----------
-let data, F = {}, useCases = [], totalSteps = 0, framesByFile = {};
+let data, F = {}, allUseCases = [], useCases = [], totalSteps = 0, framesByFile = {};
 let pos = null, navHistory = [];
 const done = new Set(), seen = new Set(), hlCache = {}, collapsedDirs = new Set();
 let storageKey = "";
-const prefs = { comments: true, files: true };
+const prefs = { comments: true, files: true, deleted: false, hiddenLayers: [] };
+const ucKey = (u) => `${u.layer}:${u.id}`;
 
 // ---------- loading ----------
 async function poll() {
   try {
     const s = await (await fetch("/api/status")).json();
-    if (s.lang && !document.documentElement.dataset.langSet) { setLang(s.lang); document.documentElement.dataset.langSet = "1"; }
     if (s.phase === "error") { $("loading").classList.add("error"); $("loading-msg").textContent = "✗ " + s.error; return; }
     $("loading-msg").textContent = s.message;
     if (s.account) $("loading-account").innerHTML = `${esc(tr("account"))} <b>${esc(s.account.label)}</b>`;
@@ -68,7 +68,7 @@ function start(payload) {
   tour.frames.forEach((f) => { F[f.id] = f; totalSteps += f.steps.length; (framesByFile[f.file] ??= []).push(f); });
   const roleOrder = { core: 0, helper: 1, trivial: 2 };
   Object.values(framesByFile).forEach((list) => list.sort((a, b) => (roleOrder[a.role] - roleOrder[b.role]) || (a.startLine - b.startLine)));
-  tour.sections.forEach((s) => s.useCases.forEach((u) => useCases.push({ ...u, layer: s.layer })));
+  tour.sections.forEach((s) => s.useCases.forEach((u) => allUseCases.push({ ...u, layer: s.layer })));
   storageKey = `lazy-reviewer:${pr.owner}/${pr.repo}#${pr.number}`;
 
   $("pr-link").textContent = `#${pr.number} ${pr.title}`;
@@ -76,14 +76,15 @@ function start(payload) {
   $("pr-meta").textContent = `${pr.author} · ${pr.head} → ${pr.base} · +${pr.additions} −${pr.deletions} · ${tr("files", pr.changedFiles)}`;
   $("tour-title").textContent = tour.title;
   $("tour-summary").innerHTML = fmt(tour.summary);
-  $("tour-foot").textContent = tr("generated", tour.model) + (tour.unanchored ? tr("unanchoredFoot", tour.unanchored) : "");
+  $("tour-foot").textContent = tr("generated", tour.model) + (data.settings ? ` · ${tr(data.settings.deep ? "modeDeep" : "modeFocused")}` : "") + (tour.unanchored ? tr("unanchoredFoot", tour.unanchored) : "");
   document.title = `Lazy Reviewer · #${pr.number}`;
   const acc = data.currentAccount, gen = tour.account;
   $("account").innerHTML = `${esc(tr("claude"))} <b>${esc(acc?.email ?? acc?.label ?? "?")}</b>${acc?.org ? ` · ${esc(acc.org)}` : ""}`;
   $("account").title = tr("accNow", acc?.label ?? "?") + "\n" + (gen ? tr("accGen", gen.label) : tr("accCache"));
 
-  if (!useCases.length) { $("loading").classList.add("error"); $("loading-msg").textContent = tr("empty"); return; }
+  if (!allUseCases.length) { $("loading").classList.add("error"); $("loading-msg").textContent = tr("empty"); return; }
   loadPrefs();
+  filterUseCases();
   restore();
   pos ??= startOf(0);
   $("loading").hidden = true;
@@ -114,7 +115,7 @@ function advance() {
     const t = cur();
     if (t.step + 1 < F[t.frameId].steps.length) { t.step++; t.returned = false; return; }
     if (pos.stack.length > 1) { pos.stack.pop(); cur().returned = true; continue; }
-    done.add(pos.uc);
+    done.add(ucKey(useCases[pos.uc]));
     if (pos.uc + 1 < useCases.length) { pos = startOf(pos.uc + 1); return; }
     navHistory.pop(); // already at the very end
     return;
@@ -158,21 +159,76 @@ function openFile(path) {
   render();
 }
 
+// ---------- hiding layers (view only, no tokens) ----------
+function filterUseCases() {
+  let visible = allUseCases.filter((u) => !prefs.hiddenLayers.includes(u.layer));
+  if (!visible.length) { prefs.hiddenLayers = []; visible = allUseCases; }
+  useCases = visible;
+}
+function toggleLayer(layer) {
+  const hidden = new Set(prefs.hiddenLayers);
+  hidden.has(layer) ? hidden.delete(layer) : hidden.add(layer);
+  if (allUseCases.every((u) => hidden.has(u.layer))) return; // keep at least one layer visible
+  const current = pos && useCases[pos.uc];
+  prefs.hiddenLayers = [...hidden];
+  savePrefs();
+  filterUseCases();
+  navHistory = []; // indexes changed
+  const i = current ? useCases.findIndex((u) => ucKey(u) === ucKey(current)) : -1;
+  if (i >= 0) pos.uc = i; else pos = startOf(0);
+  render();
+}
+
 // ---------- preferences ----------
+function savePrefs() { try { localStorage.setItem("lazy-reviewer:prefs", JSON.stringify(prefs)); } catch { /* no storage */ } }
 function loadPrefs() {
   try { Object.assign(prefs, JSON.parse(localStorage.getItem("lazy-reviewer:prefs")) ?? {}); } catch { /* no storage */ }
   applyPrefs();
 }
 function togglePref(name) {
   prefs[name] = !prefs[name];
-  try { localStorage.setItem("lazy-reviewer:prefs", JSON.stringify(prefs)); } catch { /* no storage */ }
+  savePrefs();
   applyPrefs();
   render();
 }
 function applyPrefs() {
   $("toggle-comments").classList.toggle("on", prefs.comments);
   $("toggle-files").classList.toggle("on", prefs.files);
+  $("toggle-deleted").classList.toggle("on", prefs.deleted);
   $("files").hidden = !prefs.files;
+}
+
+// ---------- reviewer instructions ----------
+let instr = null;
+async function openInstructions() {
+  instr = await (await fetch("/api/config")).json();
+  $("instr-text").value = instr.text;
+  $("opt-deep").checked = instr.settings.deep;
+  const box = $("opt-layers");
+  box.innerHTML = "";
+  for (const layer of Object.keys(S.layers)) {
+    const label = el("label", "chk");
+    label.innerHTML = `<input type="checkbox" value="${layer}"${instr.settings.layers.includes(layer) ? " checked" : ""}${layer === "critical" ? " disabled" : ""}> ${esc(S.layers[layer])}`;
+    box.append(label);
+  }
+  $("instr-text").maxLength = instr.max;
+  updateInstrState();
+  $("instr").hidden = false;
+  $("instr-text").focus();
+}
+function updateInstrState(message) {
+  const isDefault = $("instr-text").value.trim() === instr.defaultText.trim();
+  $("instr-state").textContent = message ?? tr(isDefault ? "instrDefault" : "instrCustom");
+}
+async function saveInstructions(regenerate) {
+  const settings = { deep: $("opt-deep").checked, layers: [...$("opt-layers").querySelectorAll("input:checked")].map((i) => i.value) };
+  const res = await fetch("/api/config", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text: $("instr-text").value, settings, regenerate }) });
+  if (res.status === 409) return updateInstrState(tr("busy"));
+  if (res.status === 413) return updateInstrState(tr("tooLong", instr.max));
+  if (!res.ok) return updateInstrState(`✗ ${(await res.json()).error}`);
+  if (regenerate) { try { localStorage.removeItem(storageKey); } catch { /* no storage */ } return location.reload(); }
+  instr = { ...instr, ...(await res.json()) };
+  updateInstrState(tr("saved"));
 }
 
 // ---------- render ----------
@@ -186,12 +242,18 @@ function render() {
   box.innerHTML = "";
   let idx = 0;
   for (const s of data.tour.sections) {
-    const sec = el("div", `section ${s.layer}`);
-    sec.append(el("h3", "", S.layers[s.layer]));
-    for (const u of s.useCases) {
-      const i = idx++;
-      const row = el("div", `uc${i === pos.uc ? " active" : ""}${done.has(i) ? " done" : ""}`);
-      row.innerHTML = `<span class="check">${done.has(i) ? "✓" : i === pos.uc ? "▸" : "○"}</span><span>${esc(u.title)}</span>`;
+    const hidden = prefs.hiddenLayers.includes(s.layer);
+    const sec = el("div", `section ${s.layer}${hidden ? " off" : ""}`);
+    const h = el("h3", "", S.layers[s.layer]);
+    const eye = el("button", "eye", hidden ? "○" : "●");
+    eye.title = tr(hidden ? "showLayer" : "hideLayer");
+    eye.onclick = () => toggleLayer(s.layer);
+    h.append(eye);
+    sec.append(h);
+    if (!hidden) for (const u of s.useCases) {
+      const i = idx++, d = done.has(ucKey(u));
+      const row = el("div", `uc${i === pos.uc ? " active" : ""}${d ? " done" : ""}`);
+      row.innerHTML = `<span class="check">${d ? "✓" : i === pos.uc ? "▸" : "○"}</span><span>${esc(u.title)}</span>`;
       row.onclick = () => jump(i);
       sec.append(row);
     }
@@ -238,17 +300,33 @@ function pane(s, level, active) {
   if (!file) { code.textContent = tr("noFile"); p.append(code); return p; }
   const lines = highlighted(frame.file);
   const added = new Set(file.added);
+  const deletedAt = new Set(file.deletedAt ?? []);
   const from = Math.max(1, frame.startLine - 2), to = Math.min(file.lines.length, frame.endLine + 2);
   const seenLines = new Set();
   frame.steps.forEach((st, i) => { if (seen.has(`${s.frameId}:${i}`)) for (let n = st.startLine; n <= st.endLine; n++) seenLines.add(n); });
+  const lang = LANG_MAP[frame.file.split(".").pop().toLowerCase()];
+
+  // Removed lines sit right before the new-file line they are keyed by.
+  const removedRows = (n) => {
+    if (!prefs.deleted || n < frame.startLine || n > frame.endLine + 1 || !deletedAt.has(n)) return;
+    const focus = step && n > step.startLine && n <= step.endLine ? " focus" : "";
+    const removed = file.removed?.[n];
+    if (!removed) { code.append(htmlEl("div", `ln del hint${focus}`, `<span class="num"></span><span class="mark">−</span><span class="src">${esc(tr("removedHint", "…"))}</span>`)); return; }
+    for (const r of removed) {
+      code.append(htmlEl("div", `ln del${focus}`, `<span class="num">${r.old}</span><span class="mark">−</span><span class="src">${hlLine(r.text, lang) || " "}</span>`));
+    }
+  };
 
   for (let n = from; n <= to; n++) {
+    removedRows(n);
     const inFocus = step && n >= step.startLine && n <= step.endLine;
-    const row = el("div", `ln${added.has(n) ? " added" : ""}${n < frame.startLine || n > frame.endLine ? " ctx" : ""}${inFocus ? " focus" : ""}${seenLines.has(n) ? " seen" : ""}`);
+    const delMark = !prefs.deleted && deletedAt.has(n) && n >= frame.startLine && n <= frame.endLine + 1 ? " has-del" : "";
+    const row = el("div", `ln${added.has(n) ? " added" : ""}${n < frame.startLine || n > frame.endLine ? " ctx" : ""}${inFocus ? " focus" : ""}${seenLines.has(n) ? " seen" : ""}${delMark}`);
     row.innerHTML = `<span class="num">${n}</span><span class="mark">${added.has(n) ? "+" : ""}</span><span class="src">${lines[n - 1] || " "}</span>`;
     code.append(row);
     if (active && prefs.comments && step && n === step.endLine) code.append(card(frame, s, step));
   }
+  if (to === file.lines.length) removedRows(to + 1);
   if (active && !step) code.append(el("div", "outro", tr("noSteps")));
   const isLast = active && pos.stack.length === 1 && s.step === frame.steps.length - 1;
   if (isLast && prefs.comments && useCases[pos.uc].outro) code.append(htmlEl("div", "outro", `<b>${esc(tr("result"))}</b> ` + fmt(useCases[pos.uc].outro)));
@@ -360,6 +438,10 @@ function highlighted(path) {
   return (hlCache[path] = splitHtmlLines(html));
 }
 
+function hlLine(text, lang) {
+  try { return lang && hljs.getLanguage(lang) ? hljs.highlight(text, { language: lang }).value : esc(text); } catch { return esc(text); }
+}
+
 // Splits highlight.js HTML into lines, closing and reopening any open <span>.
 function splitHtmlLines(html) {
   const out = [], open = [];
@@ -380,26 +462,43 @@ function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.
 function htmlEl(tag, cls, html) { const e = el(tag, cls); e.innerHTML = html; return e; }
 
 function save() {
-  try { localStorage.setItem(storageKey, JSON.stringify({ pos, done: [...done], seen: [...seen], n: useCases.length })); } catch { /* no storage */ }
+  try { localStorage.setItem(storageKey, JSON.stringify({ pos, uc: ucKey(useCases[pos.uc]), done: [...done], seen: [...seen], v: 2 })); } catch { /* no storage */ }
 }
 function restore() {
   try {
     const s = JSON.parse(localStorage.getItem(storageKey));
-    if (!s || s.n !== useCases.length || !s.pos.stack.every((x) => F[x.frameId])) return;
-    pos = s.pos; s.done.forEach((d) => done.add(d)); s.seen.forEach((d) => seen.add(d));
+    if (s?.v !== 2 || !s.pos.stack.every((x) => F[x.frameId])) return;
+    s.done.forEach((d) => done.add(d)); s.seen.forEach((d) => seen.add(d));
+    const i = useCases.findIndex((u) => ucKey(u) === s.uc);
+    if (i >= 0) pos = { ...s.pos, uc: i };
   } catch { /* no storage */ }
 }
 
 document.addEventListener("keydown", (e) => {
-  if (!pos || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (!$("instr").hidden) { if (e.key === "Escape") $("instr").hidden = true; return; }
+  if (!pos || e.metaKey || e.ctrlKey || e.altKey || /^(TEXTAREA|INPUT)$/.test(e.target.tagName)) return;
   const up = () => exitTo(pos.stack.length - 2);
   const map = { ArrowRight: next, l: next, " ": next, ArrowLeft: prev, h: prev, ArrowDown: enter, j: enter, ArrowUp: up, k: up, Escape: up,
-    c: () => togglePref("comments"), C: () => togglePref("comments"), f: () => togglePref("files"), F: () => togglePref("files") };
+    c: () => togglePref("comments"), C: () => togglePref("comments"), f: () => togglePref("files"), F: () => togglePref("files"),
+    d: () => togglePref("deleted"), D: () => togglePref("deleted") };
   const fn = map[e.key];
   if (fn) { e.preventDefault(); fn(); }
 });
 $("toggle-comments").onclick = () => togglePref("comments");
 $("toggle-files").onclick = () => togglePref("files");
+$("toggle-deleted").onclick = () => togglePref("deleted");
+$("open-instr").onclick = openInstructions;
+$("instr-cancel").onclick = () => { $("instr").hidden = true; };
+$("instr-default").onclick = () => {
+  $("instr-text").value = instr.defaultText;
+  $("opt-deep").checked = instr.defaultSettings.deep;
+  $("opt-layers").querySelectorAll("input").forEach((i) => { i.checked = instr.defaultSettings.layers.includes(i.value); });
+  updateInstrState();
+};
+$("instr-save").onclick = () => saveInstructions(false);
+$("instr-regen").onclick = () => saveInstructions(true);
+$("instr-text").oninput = () => updateInstrState();
+$("instr").onclick = (e) => { if (e.target === $("instr")) $("instr").hidden = true; };
 
-setLang((navigator.language || "en").split("-")[0]);
+applyLabels();
 poll();

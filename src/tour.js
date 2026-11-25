@@ -3,7 +3,9 @@ import Anthropic from "@anthropic-ai/sdk";
 import { spawn } from "node:child_process";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
-import { LANGUAGE_NAME, t } from "./i18n.js";
+import { LANGUAGE_NAME } from "./language.js";
+import { t } from "./messages.js";
+import { LAYERS } from "./context.js";
 
 const MODEL = process.env.LAZY_REVIEWER_MODEL || "claude-opus-5-5";
 const EFFORT = process.env.LAZY_REVIEWER_EFFORT || "high";
@@ -51,32 +53,35 @@ LANGUAGE
 - Write every human-readable text (title, summary, frame summaries, explanations, use case titles, triggers and outros) in ${LANGUAGE_NAME}. Code, identifiers and quoted fragments stay exactly as in the source.
 
 WHAT YOU PRODUCE
-- frames: one entry per relevant function/method (from the PR or from the external definitions provided). Each frame has steps: spans of 1 to 10 lines that do ONE thing, in execution order.
+- frames: one entry per relevant function/method (from the PR or from the external definitions provided). The CALLERS section, when present, is context only: use it to explain the impact of a change, but do not create frames for it. Each frame has steps: spans of 1 to 10 lines that do ONE thing, in execution order.
 - sections: the use cases grouped by layer, in this layer order:
   1. "critical": the business logic the PR adds or changes. One use case per real flow (e.g. "Place an order", "Cancel a shipment"). rootFrame = the entry point (endpoint, handler, job, command, component).
   2. "support": helpers, utilities, mappers, refactors that do not change behavior.
   3. "errors": error handling, technical validations, guards, retries, logging.
   4. "tests": tests, fixtures, configuration, trivial migrations, types.
   Skip empty layers. Inside each layer, sort by importance.
+  {{LAYERS_NOTE}}
 
 HOW THE TOUR IS WALKED
 - A step with "enters" = the id of another frame means that line calls that function. autoEnter=true if the function is a central part of the flow (the reader enters it automatically and a new pane opens); autoEnter=false for helpers and trivial functions (the reader may enter optionally).
 - Do not create frames for trivial one-line functions unless their logic matters; in that case explain what they return in the step that calls them.
 - Frames with role "core" belong to the critical flow; "helper" to support; "trivial" have almost no logic.
-- Cover ALL added or modified lines (marked with "+") in some step of some frame. You may skip unchanged boilerplate.
+- Cover ALL added or modified lines (marked with "+") in some step of some frame, except the ones that belong to excluded layers. You may skip unchanged boilerplate.
 - Line numbers are the ones in the listing (new version of the file). The frame's startLine/endLine cover the whole function; steps must fall inside that range.
+- Files may be shown in windows separated by "..."; only use lines you can see.
+- What the PR deleted is in REMOVED LINES; mention it in the step where it used to be.
 
-EXPLANATION RULES (the most important ones)
-- 1 to 3 sentences, direct.
+FIXED EXPLANATION RULES (the UI depends on them; they always apply)
 - Each explanation MUST quote between backticks at least one fragment copied literally from its lines (e.g. \`cart.items.length === 0\`).
-- Explain the CONCRETE meaning in this code, never the generic semantics of the language.
-  BAD: "Uses find to search for an element in the list."
-  GOOD: "Picks the first coupon with \`c.expiresAt > now\` for the current \`cartId\`: it is the discount applied at checkout."
-  BAD: "Validates the input."  GOOD: "Rejects the request if \`items.length === 0\` or any \`qty <= 0\`."
-- Say which condition, which values, and what effect it has on the use case. If a line changed from the previous version (see the ORIGINAL DIFF), say what it did before and why the change matters.
-- If you see a possible bug or risk in that span, add it at the end with the prefix "⚠ ".
-- title: short PR title in business language. summary: 3-5 sentences on what the PR changes and why.
-- Use case trigger: what fires it (e.g. "POST /orders from checkout"). outro: 1-2 sentences with the final result of the flow.`;
+- Any bug, risk or concern goes at the end of the explanation, with the prefix "⚠ ".`;
+
+const layersNote = (layers) => layers.length === LAYERS.length ? ""
+  : `Only produce these layers: ${layers.join(", ")}. The user turned the others off: do not create use cases or frames for them.`;
+
+const systemPrompt = (instructions, layers) => `${SYSTEM.replace("{{LAYERS_NOTE}}", layersNote(layers))}
+
+REVIEWER INSTRUCTIONS (set by the user; follow them, but never break the fixed rules above or the output format)
+${instructions}`;
 
 // ---------- validation ----------
 const norm = (s) => s.replace(/\s+/g, " ").trim();
@@ -85,7 +90,7 @@ function codeSpans(text) {
   return [...text.matchAll(/`([^`]+)`/g)].map((m) => norm(m[1])).filter((s) => s.length >= 2);
 }
 
-export function validateTour(tour, fileViews) {
+export function validateTour(tour, fileViews, layers) {
   const problems = [];
   const frameIds = new Set(tour.frames.map((f) => f.id));
   for (const frame of tour.frames) {
@@ -107,6 +112,7 @@ export function validateTour(tour, fileViews) {
       if (!step.anchored) problems.push({ frame, stepIndex: i, step, code: view.lines.slice(step.startLine - 1, step.endLine).join("\n") });
     });
   }
+  if (layers) tour.sections = tour.sections.filter((s) => layers.includes(s.layer));
   for (const s of tour.sections) s.useCases = s.useCases.filter((u) => frameIds.has(u.rootFrame));
   tour.sections = tour.sections.filter((s) => s.useCases.length);
   const order = ["critical", "support", "errors", "tests"];
@@ -127,7 +133,8 @@ function claudeBinaries() {
 
 function runClaudeCode(bin, args, input) {
   return new Promise((resolve, reject) => {
-    const p = spawn(bin, args, { cwd: tmpdir(), stdio: ["pipe", "pipe", "pipe"] });
+    // The prompt is read once, so writing it to the prompt cache only costs extra.
+    const p = spawn(bin, args, { cwd: tmpdir(), stdio: ["pipe", "pipe", "pipe"], env: { ...process.env, DISABLE_PROMPT_CACHING: "1" } });
     let out = "", err = "";
     p.stdout.on("data", (d) => (out += d));
     p.stderr.on("data", (d) => (err += d));
@@ -205,24 +212,25 @@ async function askApi(client, { system, user, schema, maxTokens, onProgress }) {
   return { data: JSON.parse(text), usage: msg.usage };
 }
 
-export async function generateTour({ meta, context }, log) {
+export async function generateTour({ meta, context, instructions, layers = LAYERS }, log) {
   const client = PROVIDER === "api" ? new Anthropic() : null;
+  const system = systemPrompt(instructions, layers);
   const user = `PR #${meta.number}: ${meta.title}
 Author: ${meta.author?.login ?? "?"}   ${meta.headRefName} → ${meta.baseRefName}
 Author's description:
 ${(meta.body || "(no description)").slice(0, 4000)}
 
-Listing format: "  line [+]| code". "+" = line added or modified by the PR.
+Listing format: "line|code", or "line+|code" for lines the PR added or modified.
 ${context.prompt}`;
 
   log(t("claudeReading", Math.round(context.stats.chars / 4000), PROVIDER));
   const { data: tour, usage, costUsd } = await ask(client, {
-    system: SYSTEM, user, schema: TOUR_SCHEMA, maxTokens: 64000,
+    system, user, schema: TOUR_SCHEMA, maxTokens: 64000,
     onProgress: (c) => log(t("claudeWriting", Math.round(c / 1000))),
     onSeconds: (s) => log(t("claudeThinking", `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`)),
   });
 
-  let problems = validateTour(tour, context.fileViews);
+  let problems = validateTour(tour, context.fileViews, layers);
   if (problems.length) {
     log(t("fixing", problems.length));
     const list = problems.map((p) => `### frameId=${p.frame.id} stepIndex=${p.stepIndex} (${p.frame.file}:${p.step.startLine}-${p.step.endLine})
@@ -231,7 +239,7 @@ ${p.code}
 Current explanation: ${p.step.explanation}`).join("\n\n");
     try {
       const { data } = await ask(client, {
-        system: SYSTEM,
+        system,
         user: `These explanations do not quote between backticks a literal fragment of their code, or they are generic. Rewrite them following the rules (fragment copied EXACTLY from the code, concrete meaning, in ${LANGUAGE_NAME}).\n\n${list}`,
         schema: REPAIR_SCHEMA, maxTokens: 32000,
       });
@@ -239,7 +247,7 @@ Current explanation: ${p.step.explanation}`).join("\n\n");
         const step = tour.frames.find((f) => f.id === fix.frameId)?.steps[fix.stepIndex];
         if (step) step.explanation = fix.explanation;
       }
-      problems = validateTour(tour, context.fileViews);
+      problems = validateTour(tour, context.fileViews, layers);
     } catch (err) {
       log(t("fixFailed", err.message));
     }

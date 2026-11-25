@@ -22,7 +22,9 @@
       <div class="progress"><span id="progress-text"></span><div class="bar"><div id="progress-bar"></div></div></div>
       <div class="toggles">
         <button id="toggle-comments" class="toggle" aria-label="Comments">💬</button>
+        <button id="toggle-deleted" class="toggle del-toggle" aria-label="Deleted lines">−</button>
         <button id="toggle-files" class="toggle" aria-label="Files">🗂</button>
+        <button id="open-instr" class="toggle on" aria-label="Reviewer instructions">✎</button>
       </div>
       <div class="keys" id="keys"></div>
     </header>
@@ -42,6 +44,27 @@
         <div class="files-head" id="files-title"></div>
         <div id="file-tree"></div>
       </aside>
+    </div>
+  </div>
+  <div id="instr" class="modal" hidden>
+    <div class="modal-box" role="dialog" aria-labelledby="instr-title">
+      <h3 id="instr-title"></h3>
+      <p id="instr-help"></p>
+      <div class="analysis">
+        <label class="chk"><input type="checkbox" id="opt-deep"> <b id="opt-deep-label"></b></label>
+        <p id="opt-deep-help" class="hint"></p>
+        <p id="opt-layers-label" class="hint"></p>
+        <div id="opt-layers" class="layer-opts"></div>
+      </div>
+      <p id="instr-label" class="hint"></p>
+      <textarea id="instr-text" spellcheck="false"></textarea>
+      <div class="modal-foot">
+        <span id="instr-state"></span>
+        <button id="instr-default"></button>
+        <button id="instr-cancel"></button>
+        <button id="instr-save"></button>
+        <button id="instr-regen" class="primary"></button>
+      </div>
     </div>
   </div>
   <script src="app.js"></script>

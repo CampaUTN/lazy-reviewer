@@ -4,7 +4,7 @@ import { promisify } from "node:util";
 import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
-import { t } from "./i18n.js";
+import { t } from "./messages.js";
 
 const run = promisify(execFile);
 export const HOME_DIR = join(homedir(), ".lazy-reviewer");
