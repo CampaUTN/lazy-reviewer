@@ -17,7 +17,8 @@ export const DEFAULT_INSTRUCTIONS = `- Keep each explanation to 1-3 direct sente
 - Say which condition, which values, and what effect it has on the use case.
 - If a line changed from the previous version (see REMOVED LINES), say what it did before and why the change matters.
 - Flag possible bugs, race conditions, security issues and missing error handling.
-- title: short PR title in business language. summary: 3-5 sentences on what the PR changes and why.
+- Assume the reader does not know this project. Tie each explanation to what the code is for in the product (which user action, which data, which business rule), not just what it computes.
+- title: short PR title in business language. summary: 3-5 sentences. Start with what the affected part of the project does for its users, then what the PR changes and why.
 - Use case trigger: what fires it (e.g. "POST /orders from checkout"). outro: 1-2 sentences with the final result of the flow.`;
 
 export function loadInstructions() {

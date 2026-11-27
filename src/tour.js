@@ -8,7 +8,7 @@ import { t } from "./messages.js";
 import { LAYERS } from "./context.js";
 
 const MODEL = process.env.LAZY_REVIEWER_MODEL || "claude-opus-5-5";
-const EFFORT = process.env.LAZY_REVIEWER_EFFORT || "high";
+const EFFORT = process.env.LAZY_REVIEWER_EFFORT || "medium";
 
 const str = { type: "string" };
 const int = { type: "integer" };
