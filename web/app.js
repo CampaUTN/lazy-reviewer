@@ -69,15 +69,16 @@ function start(payload) {
   const roleOrder = { core: 0, helper: 1, trivial: 2 };
   Object.values(framesByFile).forEach((list) => list.sort((a, b) => (roleOrder[a.role] - roleOrder[b.role]) || (a.startLine - b.startLine)));
   tour.sections.forEach((s) => s.useCases.forEach((u) => allUseCases.push({ ...u, layer: s.layer })));
-  storageKey = `lazy-reviewer:${pr.owner}/${pr.repo}#${pr.number}`;
+  storageKey = pr.local ? `lazy-reviewer:local:${pr.repo}:${pr.mode}:${pr.head}:${pr.base}` : `lazy-reviewer:${pr.owner}/${pr.repo}#${pr.number}`;
+  const tag = pr.local ? `[${pr.mode === "staged" ? "staged" : "branch"}] ${pr.repo} · ` : `#${pr.number} `;
 
-  $("pr-link").textContent = `#${pr.number} ${pr.title}`;
-  $("pr-link").href = pr.url;
+  $("pr-link").textContent = tag + pr.title;
+  if (pr.url) $("pr-link").href = pr.url; else $("pr-link").removeAttribute("href");
   $("pr-meta").textContent = `${pr.author} · ${pr.head} → ${pr.base} · +${pr.additions} −${pr.deletions} · ${tr("files", pr.changedFiles)}`;
   $("tour-title").textContent = tour.title;
   $("tour-summary").innerHTML = fmt(tour.summary);
   $("tour-foot").textContent = tr("generated", tour.model) + (data.settings ? ` · ${tr(data.settings.deep ? "modeDeep" : "modeFocused")}` : "") + (tour.unanchored ? tr("unanchoredFoot", tour.unanchored) : "");
-  document.title = `Lazy Reviewer · #${pr.number}`;
+  document.title = `Lazy Reviewer · ${pr.local ? pr.head : `#${pr.number}`}`;
   const acc = data.currentAccount, gen = tour.account;
   $("account").innerHTML = `${esc(tr("claude"))} <b>${esc(acc?.email ?? acc?.label ?? "?")}</b>${acc?.org ? ` · ${esc(acc.org)}` : ""}`;
   $("account").title = tr("accNow", acc?.label ?? "?") + "\n" + (gen ? tr("accGen", gen.label) : tr("accCache"));
@@ -277,8 +278,14 @@ function render() {
   });
 
   const panes = $("panes");
+  const entering = pos.stack.length > (panes._depth ?? pos.stack.length);
+  panes._depth = pos.stack.length;
   panes.innerHTML = "";
-  pos.stack.forEach((s, i) => panes.append(pane(s, i, i === pos.stack.length - 1)));
+  const track = el("div", "track");
+  pos.stack.forEach((s, i) => track.append(pane(s, i, i === pos.stack.length - 1)));
+  if (entering) track.lastChild.classList.add("enter");
+  panes.append(track);
+  layoutPanes(panes._offset ?? 0);
   requestAnimationFrame(() => panes.querySelectorAll(".pane").forEach((p) => {
     const f = p.querySelector(".ln.focus");
     if (f) { const c = p.querySelector(".code"); c.scrollTop = f.offsetTop - c.clientHeight / 3; }
@@ -286,6 +293,36 @@ function render() {
 
   if (prefs.files) renderFiles();
 }
+
+// Panes live on a horizontal track. Only the last few parents stay visible next to the active
+// pane; deeper stacks slide the track left so the oldest panes leave the screen.
+const PANE_GAP = 10;
+function layoutPanes(from = null) {
+  const panes = $("panes"), track = panes.querySelector(".track");
+  if (!track) return;
+  const width = panes.clientWidth, n = track.children.length;
+  const maxParents = width < 700 ? 0 : width < 1150 ? 1 : 2;
+  const shownParents = Math.min(n - 1, maxParents), hidden = n - 1 - shownParents;
+  const parentW = Math.round(width * 0.26), activeW = width - shownParents * (parentW + PANE_GAP);
+  [...track.children].forEach((p, i) => { p.style.width = `${i === n - 1 ? activeW : parentW}px`; });
+  const offset = hidden * (parentW + PANE_GAP);
+  // start where the previous render left the track, then slide to the new position
+  track.style.transition = "none";
+  track.style.transform = `translateX(${-(from ?? offset)}px)`;
+  void track.offsetWidth;
+  track.style.transition = "";
+  track.style.transform = `translateX(${-offset}px)`;
+  panes._offset = offset;
+
+  panes.querySelector(".hidden-panes")?.remove();
+  if (hidden > 0) {
+    const b = el("button", "hidden-panes", `‹ ${hidden}`);
+    b.title = pos.stack.slice(0, hidden).map((s) => F[s.frameId].name).join(" › ");
+    b.onclick = () => exitTo(hidden - 1);
+    panes.append(b);
+  }
+}
+window.addEventListener("resize", () => { if (pos) layoutPanes(); });
 
 function pane(s, level, active) {
   const frame = F[s.frameId], file = data.files[frame.file], step = frame.steps[s.step];

@@ -32,6 +32,23 @@ const MESSAGES = {
   accPlan: " · {0} plan",
   accReadFail: "Could not read the Claude Code session: {0}",
   accNoCli: "Can't find the `claude` CLI",
+  readingLocal: "Reading local changes in {0}…",
+  notRepo: "{0} is not inside a git repository.",
+  nothingStaged: "Nothing is staged. Stage changes with `git add` first, or use --branch.",
+  stagedTitle: "Staged changes on {0}",
+  stagedRef: "staged",
+  fetchingBase: "Fetching origin/{0}…",
+  noBase: "Can't find the base branch \"{0}\" (neither origin/{0} nor a local branch).",
+  noDefaultBase: "Can't tell the base branch. Pass it with --base <branch>.",
+  baseFromPr: "Comparing against {0}, the base of PR #{1}.",
+  baseDefault: "No open PR for this branch: comparing against {0}. Use --base <branch> to change it.",
+  noMergeBase: "This branch has no common history with {0}.",
+  nothingOnBranch: "{0} has no commits or staged changes that are not already in {1}.",
+  branchTitle: "{0} compared to {1}",
+  branchStagedTitle: "{0} + staged compared to {1}",
+  branchPlusStaged: "Including the staged changes on top of the branch commits (compared to {0}).",
+  onlyStaged: "No commits on the branch yet: reviewing the staged changes compared to {0}.",
+  modeConflict: "Use only one of: a PR link, --staged, --branch.",
 };
 
 export function t(key, ...values) {

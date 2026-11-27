@@ -133,6 +133,16 @@ function focusRanges(f) {
   return ranges;
 }
 
+// Where the "new" code lives: a commit (PR head) or the index (staged changes, and the
+// branch mode, whose index holds the branch commits plus anything staged on top).
+const showRef = (repo, path) => (repo.staged ? `:${path}` : `${repo.head}:${path}`);
+const grepArgs = (repo, opts, pattern) => ["grep", ...opts, ...(repo.staged ? ["--cached"] : []), pattern, ...(repo.staged ? [] : [repo.head]), "--"];
+// `git grep <rev>` prefixes each row with "<rev>:", `git grep --cached` does not.
+function grepRow(repo, row) {
+  const m = row.match(repo.staged ? /^(.+?):(\d+):(.*)$/ : /^[^:]+:(.+?):(\d+):(.*)$/);
+  return m && { path: m[1], line: Number(m[2]), text: m[3] };
+}
+
 function defRegex(name) {
   const n = name.replace(/[$]/g, "\\$");
   return [
@@ -144,16 +154,16 @@ function defRegex(name) {
   ].join("|");
 }
 
-async function findDefinitions(repoDir, head, names, changedPaths, readFile, max) {
+async function findDefinitions(repo, names, changedPaths, readFile, max) {
   const defs = [];
   for (const name of names) {
     if (defs.length >= max) break;
     let out = "";
-    try { out = await git(repoDir, ["grep", "-n", "-P", "-I", "--max-count=3", defRegex(name), head, "--"]); } catch { continue; }
+    try { out = await git(repo.dir, grepArgs(repo, ["-n", "-P", "-I", "--max-count=3"], defRegex(name))); } catch { continue; }
     for (const row of out.split("\n").filter(Boolean).slice(0, 2)) {
-      const m = row.match(/^[^:]+:(.+?):(\d+):(.*)$/);
+      const m = grepRow(repo, row);
       if (!m) continue;
-      const [, path, lineStr, text] = m;
+      const { path, line: lineStr, text } = m;
       if (changedPaths.has(path) || SKIP_FILE.test(path)) continue;
       if (/;\s*$/.test(text) || /^\s*(return|await|if|else)\b/.test(text)) continue;
       const lines = await readFile(path);
@@ -168,7 +178,7 @@ async function findDefinitions(repoDir, head, names, changedPaths, readFile, max
 }
 
 // Deep mode: call sites of the functions the PR defines or changes, outside the PR.
-async function findCallers(repoDir, head, files, changedPaths, readFile) {
+async function findCallers(repo, files, changedPaths, readFile) {
   const names = new Set();
   for (const f of files) {
     if (!f.lines || !CODE_FILE.test(f.path)) continue;
@@ -184,16 +194,14 @@ async function findCallers(repoDir, head, files, changedPaths, readFile) {
   for (const name of [...names].slice(0, 30)) {
     if (sites.length >= 40) break;
     let out = "";
-    try { out = await git(repoDir, ["grep", "-n", "-I", "-w", "-F", "--max-count=5", name, head, "--"]); } catch { continue; }
+    try { out = await git(repo.dir, grepArgs(repo, ["-n", "-I", "-w", "-F", "--max-count=5"], name)); } catch { continue; }
     // a plain call (not obj.name(...)); names found in too many files are too generic to help
     const call = new RegExp(`(^|[^.\\w$])${name.replace(/[$]/g, "\\$")}\\s*\\(`);
-    const rows = out.split("\n").filter(Boolean);
-    if (new Set(rows.map((r) => r.split(":")[1])).size > 15) continue;
+    const rows = out.split("\n").filter(Boolean).map((r) => grepRow(repo, r)).filter(Boolean);
+    if (new Set(rows.map((r) => r.path)).size > 15) continue;
     let found = 0;
-    for (const row of rows) {
-      const m = row.match(/^[^:]+:(.+?):(\d+):(.*)$/);
-      if (!m || found >= 3) continue;
-      const [, path, lineStr, text] = m;
+    for (const { path, line: lineStr, text } of rows) {
+      if (found >= 3) continue;
       if (changedPaths.has(path) || SKIP_FILE.test(path) || !call.test(text) || new RegExp(defRegex(name)).test(text)) continue;
       const lines = await readFile(path);
       if (!lines) continue;
@@ -219,9 +227,12 @@ function removedText(f) {
   return out.join("\n");
 }
 
-export async function buildContext({ dir, head, mergeBase }, log, { deep = false, layers = LAYERS } = {}) {
+export async function buildContext(repo, log, { deep = false, layers = LAYERS } = {}) {
+  const { dir } = repo;
   log(t("diffing"));
-  const diffText = await git(dir, ["diff", "--no-color", "-U3", "--find-renames", `${mergeBase}`, `${head}`]);
+  // staged: index vs HEAD · branch: index vs merge base · PR: merge base vs head
+  const range = repo.staged ? ["--cached", ...(repo.mergeBase ? [repo.mergeBase] : [])] : [repo.mergeBase, repo.head];
+  const diffText = await git(dir, ["diff", "--no-color", "-U3", "--find-renames", ...range]);
   const parsed = parseDiff(diffText);
   const skipTests = !layers.includes("tests");
   const excluded = (p) => SKIP_FILE.test(p) || (skipTests && TEST_FILE.test(p));
@@ -232,7 +243,7 @@ export async function buildContext({ dir, head, mergeBase }, log, { deep = false
   const readFile = async (path) => {
     if (cache.has(path)) return cache.get(path);
     let lines = null;
-    try { lines = (await git(dir, ["show", `${head}:${path}`])).replace(/\r/g, "").split("\n"); } catch { /* deleted or binary */ }
+    try { lines = (await git(dir, ["show", showRef(repo, path)])).replace(/\r/g, "").split("\n"); } catch { /* deleted or binary */ }
     cache.set(path, lines);
     return lines;
   };
@@ -277,8 +288,8 @@ export async function buildContext({ dir, head, mergeBase }, log, { deep = false
   const external = called.filter((n) => !new RegExp(defRegex(n), "m").test(allChangedText));
   const maxDefs = deep ? 80 : 40;
   log(t("findingDefs", Math.min(external.length, maxDefs)));
-  const defs = await findDefinitions(dir, head, external, changedPaths, readFile, maxDefs);
-  const callers = deep ? await findCallers(dir, head, files, changedPaths, readFile) : [];
+  const defs = await findDefinitions(repo, external, changedPaths, readFile, maxDefs);
+  const callers = deep ? await findCallers(repo, files, changedPaths, readFile) : [];
 
   // Text for the model
   let prompt = "";

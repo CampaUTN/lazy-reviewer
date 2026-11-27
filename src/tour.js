@@ -215,9 +215,9 @@ async function askApi(client, { system, user, schema, maxTokens, onProgress }) {
 export async function generateTour({ meta, context, instructions, layers = LAYERS }, log) {
   const client = PROVIDER === "api" ? new Anthropic() : null;
   const system = systemPrompt(instructions, layers);
-  const user = `PR #${meta.number}: ${meta.title}
+  const user = `${meta.number ? `PR #${meta.number}` : "Local changes (not a PR yet; review them the same way)"}: ${meta.title}
 Author: ${meta.author?.login ?? "?"}   ${meta.headRefName} → ${meta.baseRefName}
-Author's description:
+${meta.bodyLabel ?? "Author's description"}:
 ${(meta.body || "(no description)").slice(0, 4000)}
 
 Listing format: "line|code", or "line+|code" for lines the PR added or modified.

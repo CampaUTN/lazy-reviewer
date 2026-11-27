@@ -1,6 +1,6 @@
 # Lazy Reviewer
 
-An AI-guided walk through a GitHub Pull Request. It follows the use cases in order of importance, opens a pane for each function the flow enters, and explains every span of code by quoting the real code.
+An AI-guided walk through a GitHub Pull Request, or through your local changes before they are a PR. It follows the use cases in order of importance, opens a pane for each function the flow enters, and explains every span of code by quoting the real code.
 
 It runs locally: it uses **your** GitHub login (`gh`) and **your** Claude account. There is no server in between.
 
@@ -15,6 +15,18 @@ lazy-reviewer config          # optional: pick mode, layers, language and instru
 lazy-reviewer https://github.com/<owner>/<repo>/pull/<n>
 ```
 It opens `http://localhost:4321` with the tour.
+
+## Local changes (no PR)
+Run it from inside a repo:
+```sh
+lazy-reviewer --staged                 # what you staged with `git add`, compared to HEAD
+lazy-reviewer --branch                 # the current branch (commits + staged) compared to its base
+lazy-reviewer --branch --base develop  # ...compared to a branch you choose
+lazy-reviewer --staged --repo ../api   # another repo instead of the current folder
+```
+With `--branch`, the base is the base of the branch's open PR (looked up with `gh`); if there is none, origin's default branch. It fetches `origin/<base>` first and compares from the merge base, so only your branch's work counts: its commits plus whatever is staged on top (a branch with no commits yet works too). Unstaged changes are not included: `git add` them first. The commit messages play the role of the PR description.
+
+Local modes read your checkout directly (no clone) and don't need `gh` unless `--branch` has to find the PR's base. Tours are cached by the branch commits and the staged content: change either and the tour is rebuilt.
 
 ## Requirements
 - Node 20+
@@ -62,6 +74,8 @@ These apply to one run only and override the saved settings. `lazy-reviewer --he
 | `--deep` / `--no-deep` | Deep analysis on or off (see [Analysis mode](#analysis-mode)) |
 | `--layers critical,support` | Layers to generate (critical is always included) |
 | `--lang es` | Language of the analysis |
+| `--staged` · `--branch` | Local changes instead of a PR (see [Local changes](#local-changes-no-pr)) |
+| `--base <branch>` · `--repo <path>` | Base branch for `--branch` · repo to read (default: current folder) |
 | `--fresh` | Regenerate even if a cached tour exists |
 | `--port 5000` · `--no-open` | Local page port · don't open the browser |
 
@@ -154,6 +168,7 @@ To uninstall: `npm unlink -g lazy-reviewer` and delete `~/.lazy-reviewer/`.
 | `bin/lazy-reviewer.js` | entry point: local server and run flow |
 | `src/cli.js` · `src/interactive.js` | flags, help and the `config` command and menu |
 | `src/github.js` | `gh` and the bare clone |
+| `src/local.js` | local sources: staged changes and branch vs base |
 | `src/context.js` | builds what Claude sees (focused and deep modes) |
 | `src/tour.js` | prompt, Claude call and validation of the tour |
 | `src/settings.js` · `src/instructions.js` · `src/language.js` | saved settings |

@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { exec } from "node:child_process";
 import { parsePrUrl, checkGh, fetchPrMeta, prepareRepo, HOME_DIR } from "../src/github.js";
 import { buildContext } from "../src/context.js";
+import { prepareLocal } from "../src/local.js";
 import { generateTour, getAccount } from "../src/tour.js";
 import { LANG } from "../src/language.js";
 import { t } from "../src/messages.js";
@@ -15,10 +16,12 @@ import { interactiveConfig } from "../src/interactive.js";
 import { loadInstructions, saveInstructions, instructionsTag, DEFAULT_INSTRUCTIONS, MAX_INSTRUCTIONS } from "../src/instructions.js";
 import { loadSettings, saveSettings, settingsTag, DEFAULT_SETTINGS } from "../src/settings.js";
 
-let opts, runSettings;
+let opts, runSettings, mode;
 try {
   opts = parseArgs(process.argv.slice(2));
-  if (opts.help || !opts._.length) { console.log(HELP); process.exit(opts.help ? 0 : 1); }
+  mode = opts.staged ? "staged" : opts.branch || opts.base ? "branch" : "pr";
+  if (opts.help || (mode === "pr" && !opts._.length)) { console.log(HELP); process.exit(opts.help ? 0 : 1); }
+  if ((opts.staged && (opts.branch || opts.base)) || (mode !== "pr" && opts._.length && opts._[0] !== "config")) throw new Error(t("modeConflict"));
   if (opts._[0] === "config") {
     const flags = Object.keys(opts).some((k) => CONFIG_FLAGS.has(k));
     if (!flags && process.stdin.isTTY && process.stdout.isTTY) await interactiveConfig(); else configCommand(opts);
@@ -44,34 +47,59 @@ async function prepare(force = false) {
   const instructions = loadInstructions();
   const settings = firstRun ? runSettings : loadSettings();
   firstRun = false;
-  const pr = parsePrUrl(url);
-  await checkGh();
   state.account = await getAccount();
   console.log(`· ${t("claudeAccount", state.account.label)}`);
-  log(t("readingPr", `${pr.owner}/${pr.repo}#${pr.number}`));
-  const meta = await fetchPrMeta(pr);
+  const source = mode === "pr" ? await prSource() : await localSource();
+
   const cacheDir = join(HOME_DIR, "tours");
   mkdirSync(cacheDir, { recursive: true });
-  const base = `${pr.owner}__${pr.repo}__${pr.number}__${meta.headRefOid.slice(0, 12)}`;
   const tag = [instructionsTag(instructions), settingsTag(settings)].filter(Boolean).join("-");
-  const cacheFile = join(cacheDir, `${base}__${LANG}${tag ? `__${tag}` : ""}.json`);
+  const cacheFile = join(cacheDir, `${source.key}__${LANG}${tag ? `__${tag}` : ""}.json`);
   // Tours cached before the language suffix existed were written in Spanish.
-  const legacyFile = join(cacheDir, `${base}.json`);
+  const legacyFile = mode === "pr" ? join(cacheDir, `${source.key}.json`) : null;
   const cached = [cacheFile, LANG === "es" && !tag ? legacyFile : null].find((f) => f && existsSync(f));
   if (!fresh && !force && cached) {
     log(t("cached"));
     return JSON.parse(readFileSync(cached, "utf8"));
   }
-  const repo = await prepareRepo(pr, meta, log);
+  const repo = await source.repo();
   const context = await buildContext(repo, log, settings);
   state.phase = "generating";
-  const tour = await generateTour({ meta, context, instructions: instructions.text, layers: settings.layers }, log);
+  const tour = await generateTour({ meta: source.meta, context, instructions: instructions.text, layers: settings.layers }, log);
   // Only send the browser the files the tour uses.
   const used = new Set(tour.frames.map((f) => f.file));
   const files = Object.fromEntries(Object.entries(context.fileViews).filter(([p]) => used.has(p)));
-  const payload = { pr: { ...pr, title: meta.title, url: meta.url, author: meta.author?.login, head: meta.headRefName, base: meta.baseRefName, additions: meta.additions, deletions: meta.deletions, changedFiles: meta.changedFiles }, tour, files, changed: context.changed, settings };
+  const payload = { pr: source.pr(context), tour, files, changed: context.changed, settings };
   writeFileSync(cacheFile, JSON.stringify(payload));
   return payload;
+}
+
+// A GitHub PR: metadata from gh, code from a cached bare clone.
+async function prSource() {
+  const pr = parsePrUrl(url);
+  await checkGh();
+  log(t("readingPr", `${pr.owner}/${pr.repo}#${pr.number}`));
+  const meta = await fetchPrMeta(pr);
+  return {
+    key: `${pr.owner}__${pr.repo}__${pr.number}__${meta.headRefOid.slice(0, 12)}`,
+    meta,
+    repo: () => prepareRepo(pr, meta, log),
+    pr: () => ({ ...pr, title: meta.title, url: meta.url, author: meta.author?.login, head: meta.headRefName, base: meta.baseRefName, additions: meta.additions, deletions: meta.deletions, changedFiles: meta.changedFiles }),
+  };
+}
+
+// Staged changes or the current branch vs its base, read from the local repo.
+async function localSource() {
+  const path = opts.repo ?? process.cwd();
+  log(t("readingLocal", path));
+  const local = await prepareLocal({ mode, path, base: opts.base }, log);
+  const sum = (ctx, k) => ctx.changed.reduce((n, f) => n + f[k], 0);
+  return {
+    key: local.key,
+    meta: local.meta,
+    repo: async () => local.repo,
+    pr: (ctx) => ({ ...local.pr, additions: sum(ctx, "additions"), deletions: sum(ctx, "deletions"), changedFiles: ctx.changed.length }),
+  };
 }
 
 let running = false;

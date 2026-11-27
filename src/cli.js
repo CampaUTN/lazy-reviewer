@@ -5,15 +5,23 @@ import { loadSettings, saveSettings, DEFAULT_SETTINGS, SETTINGS_FILE } from "./s
 import { loadInstructions, saveInstructions, INSTRUCTIONS_FILE } from "./instructions.js";
 import { ENV_LANG, SYSTEM_LANG, languageName } from "./language.js";
 
-const VALUE_FLAGS = new Set(["port", "lang", "layers", "instructions"]);
+const VALUE_FLAGS = new Set(["port", "lang", "layers", "instructions", "base", "repo"]);
 export const CONFIG_FLAGS = new Set(["deep", "no-deep", "layers", "lang", "instructions", "default-instructions", "show-instructions", "reset", "list"]);
 
-export const HELP = `Lazy Reviewer: an AI-guided walk through a GitHub Pull Request.
+export const HELP = `Lazy Reviewer: an AI-guided walk through a GitHub Pull Request or your local changes.
 
 Usage
   lazy-reviewer <pr-url> [options]   Build the tour for a PR and open it
+  lazy-reviewer --staged [options]   Tour of the staged changes (git add) in the current repo
+  lazy-reviewer --branch [options]   Tour of the current branch (its commits plus anything staged)
+                                     compared to its base: the base of its open PR, or origin's
+                                     default branch (change it with --base)
   lazy-reviewer config               Interactive menu to change the saved settings (applies to every new tour)
   lazy-reviewer config [options]     Change the saved settings without the menu
+
+Local options
+  --base <branch>          Base branch for --branch (implies --branch)
+  --repo <path>            Repository to read (default: the current folder)
 
 Run options (this run only; they override the saved settings)
   --deep, --no-deep        Deep analysis: full changed files, more definitions and the callers
@@ -37,7 +45,8 @@ Config options
 
 Examples
   lazy-reviewer config --layers critical,support --lang es
-  lazy-reviewer https://github.com/owner/repo/pull/123 --deep`;
+  lazy-reviewer https://github.com/owner/repo/pull/123 --deep
+  lazy-reviewer --branch --base develop`;
 
 export function parseArgs(argv) {
   const opts = { _: [] };

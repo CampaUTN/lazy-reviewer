@@ -52,10 +52,16 @@ main { flex: 1; min-width: 0; display: flex; flex-direction: column; padding: 12
 #breadcrumb span { cursor: pointer; } #breadcrumb span:hover { color: var(--accent); }
 #breadcrumb span.cur { color: var(--text); cursor: default; }
 
-#panes { flex: 1; display: flex; gap: 10px; min-height: 0; padding-bottom: 12px; }
-.pane { display: flex; flex-direction: column; min-width: 0; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); transition: flex .25s; overflow: hidden; }
-.pane.active { flex: 1 1 0; border-color: var(--accent); }
-.pane.parent { flex: 0 0 26%; opacity: .55; cursor: pointer; }
+#panes { flex: 1; display: flex; min-height: 0; padding-bottom: 12px; position: relative; overflow: hidden; }
+.track { display: flex; gap: 10px; flex: 0 0 auto; transition: transform .35s cubic-bezier(.2, .7, .2, 1); will-change: transform; }
+.pane { flex: 0 0 auto; display: flex; flex-direction: column; min-width: 0; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); transition: width .35s cubic-bezier(.2, .7, .2, 1), opacity .35s; overflow: hidden; }
+.pane.active { border-color: var(--accent); }
+.pane.enter { animation: pane-in .35s cubic-bezier(.2, .7, .2, 1); }
+@keyframes pane-in { from { transform: translateX(48px); opacity: 0; } }
+.hidden-panes { position: absolute; left: 0; top: 0; z-index: 2; font: 12px var(--mono); color: var(--text); background: var(--panel-2); border: 1px solid var(--border); border-radius: 0 0 8px 0; padding: 3px 8px; cursor: pointer; box-shadow: 4px 0 12px rgba(0,0,0,.35); }
+.hidden-panes:hover { border-color: var(--accent); }
+@media (prefers-reduced-motion: reduce) { .track, .pane { transition: none; } .pane.enter { animation: none; } }
+.pane.parent { opacity: .55; cursor: pointer; }
 .pane.parent:hover { opacity: .8; }
 .pane.parent .card { display: none; }
 .pane-head { padding: 8px 12px; border-bottom: 1px solid var(--border); background: var(--panel-2); }
@@ -88,7 +94,6 @@ code { font-variant-ligatures: none; }
 
 @media (max-width: 800px) {
   aside { display: none; } .keys { display: none; } .toggles { display: none; }
-  .pane.parent { display: none; }
 }
 @media (max-width: 1200px) { .keys { display: none; } }
 @media (max-width: 1000px) { #files { display: none; } }
