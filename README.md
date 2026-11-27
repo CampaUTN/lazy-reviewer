@@ -2,6 +2,10 @@
 
 An AI-guided walk through a GitHub Pull Request, or through your local changes before they are a PR. It follows the use cases in order of importance, opens a pane for each function the flow enters, and explains every span of code by quoting the real code.
 
+![Lazy Reviewer reviewing its own branch: it steps through the flow, opens a pane for each function it enters and slides older panes away](docs/demo.gif)
+
+*Lazy Reviewer touring its own `feat/local-modes` branch (`lazy-reviewer --branch --base main`).*
+
 It runs locally: it uses **your** GitHub login (`gh`) and **your** Claude account. There is no server in between.
 
 ## Quick start
@@ -135,7 +139,29 @@ Some rules are fixed because the UI depends on them: every explanation quotes th
 4. Every explanation must quote, between backticks, a literal fragment of its lines. The ones that don't are sent back to be fixed once; if they still don't quote the code, the UI marks them with ⚠.
 5. The result is cached per commit, language and settings: reopening the same PR spends no tokens.
 
-## Token use
+## Spending fewer tokens
+The defaults favor quality: the context is already the small one (focused mode), but all 4 layers are generated and the model is Opus with high effort. Each lever below cuts cost on its own, roughly from most to least savings per tour:
+
+| Lever | Default | Cheapest | How |
+|---|---|---|---|
+| Model | `claude-opus-5-5` | `claude-haiku-5-5` (or `claude-sonnet-5-5` as a middle ground) | `LAZY_REVIEWER_MODEL` |
+| Layers | all 4 | `critical` only | `lazy-reviewer config --layers critical` |
+| Reasoning effort | `high` | `low` | `LAZY_REVIEWER_EFFORT` |
+| Analysis mode | focused | focused (already the minimum) | leave `--deep` off |
+| Cache | on | on | reopening a tour is free; avoid `--fresh` |
+
+A cheap setup that is still useful (critical and errors only, Sonnet, medium effort):
+```sh
+lazy-reviewer config --layers critical,errors --no-deep
+```
+```powershell
+$env:LAZY_REVIEWER_MODEL = "claude-sonnet-5-5"; $env:LAZY_REVIEWER_EFFORT = "medium"
+```
+On macOS or Linux: `export LAZY_REVIEWER_MODEL=claude-sonnet-5-5 LAZY_REVIEWER_EFFORT=medium`.
+
+Layers and mode are saved settings (they apply to every tour); model and effort are environment variables, so put them in your shell profile to keep them. Smaller models explain less precisely and fail the "quote the code" check more often (those steps show ⚠).
+
+### Token use
 Measured on a 33-file PR (+2217 −166 lines):
 | Mode | Prompt size |
 |---|---|
